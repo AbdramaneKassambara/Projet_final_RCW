@@ -9,6 +9,10 @@ from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 import pandas as pd
 import time
+from faker import Faker
+from feature import process_image
+
+fake = Faker()
 
 urls = [
     "https://www.google.com/search?q=voiture+de+luxe+rolls-royce&bih=495&biw=1131&hl=fr&tbm=shop&sa=X&ved=2ahUKEwigj5nYyt2CAxUgGGIAHVi6C5EQ1TV6BQgBEJAB",
@@ -43,48 +47,48 @@ for url in urls:
                 for img in card_img:
                     img_src = img.get('src', img.get('data-src', 'n\\a'))
                     info = card.find('h3', class_="tAxDx").text.strip()
-                    span_prix_ca = card.find(
-                        'span', class_="a8Pemb").text.strip()
+                    span_prix_ca = card.find('span', class_="a8Pemb").text.strip()
+                    prix_ca_cleaned = span_prix_ca.replace('$', '').replace(' ', '')
                     span_prix_US = card.find('span', class_="hahPbb")
-                    prix_us_text = span_prix_US.text.strip(
-                    ) if span_prix_US is not None else "n\a"
+                    prix_us_text = span_prix_US.text.strip() if span_prix_US is not None else "n\\a"
                     compagne = card.find('div', class_="aULzUe").text.strip()
                     livraison = card.find('div', class_="vEjMR")
-                    livraison_text = livraison.text.strip(
-                    ) if livraison is not None else "n\a"
+                    livraison_text = livraison.text.strip() if livraison is not None else "n\\a"
                     response = None
                     if img_src.startswith('data:'):
-                        print(
-                            f"Image {compteur_total} est une image de données (non téléchargée).")
+                        print(f"Image {compteur_total} est une image de données (non téléchargée).")
                     else:
-                        response = requests.get(img_src)
-                        if response.status_code == 200:
+                        try:
+                            response = requests.get(img_src)
+                            response.raise_for_status()
                             chemin_dossier = os.path.join(dossier_images)
                             if not os.path.exists(chemin_dossier):
                                 os.makedirs(chemin_dossier)
                             nom_image = f"image_{str(compteur_total)}_.jpg"
-                            chemin_image = os.path.join(
-                                dossier_images, nom_image)
-                            try:
-                                with open(chemin_image, 'wb') as fichier_image:
-                                    fichier_image.write(response.content)
-                                classe_aleatoire = random.randint(1, 5)
-                                donnees.append([chemin_image, info, span_prix_ca,
-                                                prix_us_text, compagne, livraison_text, classe_aleatoire])
-                                print(
-                                    f"Image {nom_image} téléchargée avec succès.")
-                            except Exception as e:
-                                print(
-                                    f"Échec du téléchargement de l'image {img_src}")
-                                print(
-                                    f"Nom du fichier problématique : {nom_image}")
-                                print(
-                                    "-------------------------------------------------------------------------------------------------------")
-                        else:
-                            print(
-                                f"Échec du téléchargement de l'image {img_src}")
-                            print(
-                                "-------------------------------------------------------------------------------------------------------")
+                            chemin_image = os.path.join(dossier_images, nom_image)
+                            with open(chemin_image, 'wb') as fichier_image:
+                                fichier_image.write(response.content)
+                            feature = process_image(chemin_image)
+                            classe_aleatoire = random.randint(0, 1)
+                            # Génération aléatoire d'un identifiant unique (item_id)
+                            item_id = fake.uuid4()
+                            # Génération aléatoire de caractéristiques de voiture (à adapter selon vos besoins)
+                            caracteristiques_voiture = {
+                                'modele': fake.word(),
+                                'marque': fake.word(),
+                                'annee': fake.year(),
+                                'caracteristiques_techniques': fake.sentence()
+                            }
+                            donnees.append([item_id, feature, caracteristiques_voiture, info, prix_ca_cleaned, prix_us_text, compagne, livraison_text, classe_aleatoire])
+                            print(f"Image {nom_image} téléchargée avec succès.")
+                        except Exception as e:
+                            print(f"Échec du téléchargement de l'image {img_src}")
+                            print(f"Nom du fichier problématique : {nom_image}")
+                            print(f"Erreur : {e}")
+                            print("-------------------------------------------------------------------------------------------------------")
+                        finally:
+                            if response:
+                                response.close()
             page += 1
             print(f'\nPages : {page}\n')
             try:
@@ -97,8 +101,10 @@ for url in urls:
                 break
     finally:
         driver.quit()
+
+# Ajout de l'item_id à votre DataFrame
 df = pd.DataFrame(donnees, columns=[
-                  "Chemin_Image", "Nom", "Prix_CA", "Prix_US", "Compagne_Model", "Livraison", "Classe"])
+                  "item_id", "features","caracteristiques_voiture","Nom", "Prix_CA", "Prix_US", "Compagne_Model", "Livraison", "Class"])
 df.to_csv(os.path.join(dossier_donnees, 'donnees_total.csv'), index=False)
 print('\n -------------------------------------------------------------------Head rows \n -------------------------------------------------------------------')
 print(df.head())
